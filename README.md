@@ -18,10 +18,10 @@ The associated challenge binary may be either global, which means all users will
 ```sh
 curl -fsSL https://get.docker.com | /bin/sh
 
-DOJO_PATH="./dojo"
-git clone https://github.com/pwncollege/dojo "$DOJO_PATH"
-docker build -t pwncollege/dojo "$DOJO_PATH"
-docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
+DOJO_PATH="./pwnnsylvania"
+git clone https://github.com/sashaNull/pwnnsylvania "$DOJO_PATH"
+docker build -t pwnnsylvania/dojo "$DOJO_PATH"
+docker run --privileged -d -v "${DOJO_PATH}:/opt/pwnnsylvania:shared" -p 22:22 -p 80:80 -p 443:443 --name dojo pwnnsylvania/dojo
 ```
 
 This will run the initial setup, including building the challenge docker image.
@@ -40,7 +40,7 @@ This will run the initial setup, including building the challenge docker image.
 
 ### Local Setup
 
-By default, the dojo will initialize itself to listen on and serve from `localhost.pwn.college` (which resolves 127.0.0.1).
+By default, the dojo will initialize itself to listen on and serve from `localhost` (which resolves 127.0.0.1).
 This is fine for development, but to serve your dojo to the world, you will need to update this (see Production Setup).
 
 It will take some time to initialize everything and build the challenge docker image.
@@ -58,7 +58,7 @@ You can change these admin credentials in the admin panel.
 Customizing the setup process is done through `-e KEY=value` arguments to the `docker run` command.
 You can stop the already running dojo instance with `docker stop dojo`, and then re-run the `docker run` command with the appropriately modified flags.
 
-In order to change where the host is serving from, you can modify `DOJO_HOST`; for example: `-e DOJO_HOST=localhost.pwn.college`.
+In order to change where the host is serving from, you can modify `DOJO_HOST`; for example: `-e DOJO_HOST=localhost.pwnnsylvania.cis.upenn.edu`.
 In order for this to work correctly, you must correctly point the domain at the server's IP via DNS.
 
 By default, a minimal challenge image is built.
@@ -75,14 +75,3 @@ _All_ dojo data will be stored in the `./data` directory.
 
 Once logged in, you can add a dojo by visiting `/dojos/create`. Dojos are contained within git repositories. 
 Refer to [the example dojo](https://github.com/pwncollege/example-dojo) for more information.
-
-## Contributing
-
-We love Pull Requests! 🌟
-Have a small update?
-Send a PR so everyone can benefit.
-For more substantial changes, open an issue to ensure we're on the same page.
-Together, we make this project better for all! 🚀
-
-You can run the dojo CI testcases locally using [act](https://github.com/nektos/act).
-They should run using the "medium" image.
