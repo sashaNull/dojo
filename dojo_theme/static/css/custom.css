@@ -6,12 +6,12 @@ body {
     background-color: #151515 !important;
 }
 
-body, table, .form-control:focus, .close {
-    color: #eaeaea !important;
+body, table, p, .form-control:focus, .close {
+    color: #b5e853 !important;
 }
 
-.navbar-brand, .nav-link, h1, h2, #syllabus h3, #syllabus h4, .navbar-pulldown {
-    color: #b5e853 !important;
+h1, h2, #syllabus h3, #syllabus h4, .navbar-pulldown {
+    color: #ffffff !important;
 }
 
 .navbar > .container {
@@ -28,7 +28,7 @@ a:hover {
 }
 
 nav {
-    border-bottom: 1px dashed #b5e853;
+    border-bottom: 1px dashed #ffffff;
 }
 
 h4 {
@@ -102,7 +102,7 @@ h4 {
 }
 
 .navbar-brand::before {
-    content: "./"
+    content: "~/";
 }
 
 .nav-tabs {
@@ -133,8 +133,13 @@ h4 {
     display: none;
 }
 
-.bg-dark, .jumbotron, .nav-link.active, .form-control {
-    background-color: inherit !important;
+.bg-dark, .nav-link.active, .form-control {
+    background-color: #990000 !important;
+}
+
+.jumbotron
+{
+    background-color: #011F5B;
 }
 
 .table-striped tbody tr:nth-of-type(2n+1) {

@@ -176,7 +176,7 @@ def start_challenge(user, dojo_challenge, practice):
         exec_run("chmod -R 4755 /challenge")
 
     def insert_flag(flag):
-        exec_run(f"echo 'pwn.college{{{flag}}}' > /flag", shell=True)
+        exec_run(f"echo 'Pwnnsylvania{{{flag}}}' > /flag", shell=True)
 
     def insert_auth_token(auth_token):
         exec_run(f"echo '{auth_token}' > /.authtoken", shell=True)

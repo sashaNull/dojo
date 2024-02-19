@@ -106,8 +106,8 @@ for config_option in missing_warnings:
 
 
 def bootstrap():
-    set_config("ctf_name", "pwn.college")
-    set_config("ctf_description", "pwn.college")
+    set_config("ctf_name", "Pwnnsylvania")
+    set_config("ctf_description", "Pwnnsylvania")
     set_config("user_mode", "users")
 
     set_config("challenge_visibility", "public")

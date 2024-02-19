@@ -6,7 +6,7 @@ Remove-LocalGroupMember -Group "Administrators" -Member hacker
 & "C:\Program Files (x86)\WinFsp\bin\launchctl-x64.exe" start virtiofs viofsZ home Z:
 
 Remove-iTem -Path C:\flag -Force
-echo 'pwn.college{uninitialized}' > C:\flag
+echo 'Pwnnsylvania{uninitialized}' > C:\flag
 
 # crash course in the footguns of NTFS's ACL based permissions system that I learned
 #  the hard way:

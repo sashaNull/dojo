@@ -573,7 +573,7 @@ RUN <<EOF
     ln -sf /home/hacker/.pwn.conf /root/.pwn.conf
 
     mkdir /challenge
-    install -m 400 <(echo 'pwn.college{uninitialized}') /flag
+    install -m 400 <(echo 'Pwnnsylvania{uninitialized}') /flag
 EOF
 
 ################################################################################

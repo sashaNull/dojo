@@ -306,7 +306,7 @@ def test_workspace_flag_permission():
 @pytest.mark.dependency(depends=["test_start_challenge"])
 def test_workspace_challenge():
     result = workspace_run("/challenge/apple", user="admin")
-    match = re.search("pwn.college{(\\S+)}", result.stdout)
+    match = re.search("Pwnnsylvania{(\\S+)}", result.stdout)
     assert match, f"Expected flag, but got: {result.stdout}"
 
 
