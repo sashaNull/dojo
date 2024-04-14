@@ -21,7 +21,7 @@ curl -fsSL https://get.docker.com | /bin/sh
 DOJO_PATH="./dojo"
 git clone https://github.com/sashaNull/pwnnsylvania "$DOJO_PATH"
 docker build -t pwncollege/dojo "$DOJO_PATH"
-docker run --privileged -d -v "${DOJO_PATH}:/opt/pwnnsylvania:shared" -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
+docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
 ```
 
 This will run the initial setup, including building the challenge docker image.
