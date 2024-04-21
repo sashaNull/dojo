@@ -16,7 +16,8 @@
     <div class="collapse navbar-collapse" id="base-navbars">
       <ul class="navbar-nav mr-auto">
         {{ navitem("Dojos", url_for("pwncollege_dojos.listing"), "fa-torii-gate") }}
-        {{ navitem("Workspace", url_for("pwncollege_workspace.view_workspace", service="vscode"), "fa-terminal") }}
+        {{ navitem("VSCode", url_for("pwncollege_workspace.view_workspace", service="vscode"), "fa-terminal") }}
+        {{ navitem("Desktop", url_for("pwncollege_workspace.view_workspace", service="desktop"), "fa-desktop") }}
       </ul>
 
       <hr class="d-sm-flex d-md-flex d-lg-none">

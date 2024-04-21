@@ -385,7 +385,7 @@ EOF
 
 # TODO: can we generate desktop data with cli ???
 COPY desktop/xfce4 /usr/share/desktop-base/profiles/xdg-config/xfce4
-COPY desktop/pwncollege_background.jpg /usr/share/backgrounds/
+COPY desktop/pwnnsylvania_background.png /usr/share/backgrounds/
 
 RUN rm /etc/xdg/autostart/*
 
