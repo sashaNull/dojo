@@ -1,14 +1,14 @@
 # DOJO
 
-Deploy a pwn.college dojo instance!
+Deploy a Pwnnsylvania dojo instance!
 
 ## Details
 
-The pwn.college dojo infrastructure is based on [CTFd](https://github.com/CTFd/CTFd).
+Pwnnsylvania is a fork of [pwn.college](https://pwn.college). The dojo infrastructure is based on [CTFd](https://github.com/CTFd/CTFd).
 CTFd provides for a concept of users, challenges, and users solving those challenges by submitting flags.
 From there, this repository provides infrastructure which expands upon these capabilities.
 
-The pwn.college infrastructure allows users the ability to "start" challenges, which spins up a private docker container for that user.
+The infrastructure allows users the ability to "start" challenges, which spins up a private docker container for that user.
 This docker container will have the associated challenge binary injected into the container as root-suid, as well as the flag to be submitted as readable only by the the root user.
 Users may enter this container via `ssh`, by supplying a public ssh key in their profile settings, or via vscode in the browser ([code-server](https://github.com/cdr/code-server)).
 The associated challenge binary may be either global, which means all users will get the same binary, or instanced, which means that different users will receive different variants of the same challenge.
@@ -35,7 +35,7 @@ This will run the initial setup, including building the challenge docker image.
 > This can be accomplished by replacing the bind mount with a docker volume for `data/docker`, which will use a native Linux mount. 
 > You can apply this solution using the following Docker command (notice the additional `-v`):
 > ```sh
-> docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -v dojo-data-docker:/opt/pwn.college/data/docker -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
+> docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -v dojo-data-docker:/opt/pwn.college/data/docker -p 22:22 -p 80:80 -p 443:443 --name dojo pwnnsylvania/dojo
 > ```
 
 ### Local Setup
@@ -74,11 +74,11 @@ The following options are available:
 When updating your dojo deployment, there is only one supported method in the `dojo` directory:
 
 ```sh
-docker kill pwncollege/dojo
-docker rm pwncollege/dojo
+docker kill pwnnsylvania/dojo
+docker rm pwnnsylvania/dojo
 git pull
-docker build -t pwncollege/dojo "$DOJO_PATH"
-docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p 80:80 -p 443:443 --name dojo pwncollege/dojo
+docker build -t pwnnsylvania/dojo "$DOJO_PATH"
+docker run --privileged -d -v "${DOJO_PATH}:/opt/pwn.college:shared" -p 22:22 -p 80:80 -p 443:443 --name dojo pwnnsylvania/dojo
 ```
 
 This will cause downtime when the dojo is rebuilding.
