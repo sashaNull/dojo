@@ -188,7 +188,7 @@ function submitFlag(event) {
     result_notification.addClass('alert alert-warning alert-dismissable text-center');
     result_message.html("Loading...");
     result_notification.slideDown();
-    if (submission === "pwn.college{practice}") {
+    if (submission === "Pwnnsylvania{practice}") {
         result_notification.removeClass();
         result_notification.addClass('alert alert-success alert-dismissable text-center');
         result_message.html('You have submitted the \"practice\" flag from launching the challenge in Practice mode! This flag is not valid for scoring. Run the challenge in non-practice mode by pressing Start above, then use your solution to get the \"real\" flag and submit it!');

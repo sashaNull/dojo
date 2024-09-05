@@ -13,7 +13,7 @@ function submitChallenge(event) {
     }
     var params = {}
 
-    if (submission == "pwn.college{practice}") {
+    if (submission == "Pwnnsylvania{practice}") {
         return renderSubmissionResponse({ "data": { "status": "practice", "message": "You have submitted the \"practice\" flag from launching the challenge in Practice mode! This flag is not valid for scoring. Run the challenge in non-practice mode by pressing Start above, then use your solution to get the \"real\" flag and submit it!" } }, item);
     }
     return CTFd.api.post_challenge_attempt(params, body).then(function (response) {
