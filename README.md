@@ -134,7 +134,7 @@ curl -fsSL https://get.docker.com | /bin/sh
 DOJO_PATH="./dojo"
 DATA_PATH="./dojo/data"
 
-git clone https://github.com/pwncollege/dojo "$DOJO_PATH"
+git clone https://github.com/sashaNull/dojo "$DOJO_PATH"
 docker build -t pwncollege/dojo "$DOJO_PATH"
 
 docker run \
