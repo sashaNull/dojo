@@ -23,18 +23,21 @@ def dojo_stats(dojo):
 @dojos.route("/dojos")
 def listing(template="dojos.html"):
     categorized_dojos = {
-        "Start Here": [],
-        # "Topics": [],
-        "Courses": [],
-        "More Material": [],
+        "welcome": [],
+        "topic": [],
+        "public": [],
+        "course": [],
+        "member": [],
+        "admin": [],
     }
-    type_to_category = {
-        # "topic": "Topics",
-        "course": "Courses",
-        "welcome": "Start Here"
-    }
-    options = db.undefer(Dojos.modules_count), db.undefer(Dojos.challenges_count)
-    dojo_solves = Dojos.viewable(user=user).options(*options)
+
+    user = get_current_user()
+    user_dojo_admins = []
+    user_dojo_members = []
+    dojo_solves = (
+        Dojos.viewable(user=user)
+        .options(db.undefer(Dojos.modules_count), db.undefer(Dojos.challenges_count))
+    )
     if user:
         solves_subquery = (
             DojoChallenges.solves(user=user, ignore_visibility=True, ignore_admins=False)

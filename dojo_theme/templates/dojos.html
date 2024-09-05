@@ -1,22 +1,6 @@
 {% extends "base.html" %}
 {% from "macros/widgets.html" import card %}
-
-{% set dojo_descriptions = {
-    "Start Here": "These dojos are designed to help you begin your Pwnnsylvania. Start here before venturing onwards!",
-    "Topics": "These dojos form the official Pwnnsylvania curriculum, and you will earn belts when you complete them. We recommend that you tackle them in order.",
-    "Courses": "We run a number of courses on this platform. We recommend that you tackle them in order. Good luck!",
-    "More Material": "This section contains dojos created by the pwn.college community and UPenn students. Completing these dojos will grant you emoji badges!"
-} %}
-
-{% set svg_add_icon %}
-<svg class="w-100 h-100">
-  <circle cx="50%" cy="50%" r="30%" stroke="gray" fill="none" stroke-width="8" stroke-dasharray="8"></circle>
-  <g stroke="gray" stroke-width="8">
-    <line x1="50%" y1="30%" x2="50%" y2="70%"></line>
-    <line x1="30%" y1="50%" x2="70%" y2="50%"></line>
-  </g>
-</svg>
-{% endset %}
+{% from "macros/widgets.html" import dojo_grid %}
 
 {% block content %}
 <div class="jumbotron">
