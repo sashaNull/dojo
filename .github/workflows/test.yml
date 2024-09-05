@@ -1,51 +1,99 @@
-name: Test building and running dojo
+name: Integration Test
 on:
-  push:
   pull_request:
+  push:
+    branches:
+      - master
   schedule:
     - cron: '42 06 * * *'
 jobs:
-  smoketest:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 15
+  test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v5
-        with:
-          tags: dojo-test
-          load: true
-          no-cache: ${{ github.event_name == 'schedule' }}
-          # cache-from: type=gha
-          # cache-to: type=gha,mode=max
+      - name: Host information
+        run: |
+          echo "::group::Host information"
+          echo "Hostname: $(hostname)"
+          echo "IP: $(hostname -I)"
+          echo "::endgroup::"
+          echo "::group::Filesystem"
+          df -h
+          echo "::endgroup::"
+          echo "::group::Memory"
+          free -h
+          echo "::endgroup::"
+          echo "::group::CPU"
+          lscpu
+          echo "::endgroup::"
 
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
           cache: 'pip'
-
-      - name: Prepare Firefox
+      - name: Setup firefox
         uses: browser-actions/setup-firefox@latest
-
       - name: Install test dependencies
         run: pip install pytest pytest-dependency requests selenium
+
+      - name: Make docker cache dir owned by our user
+        run: |
+          sudo chown $USER:$USER /mnt
+
+      - name: Restore docker data cache
+        if: github.event_name != 'schedule'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            /mnt/data-docker.tar.gz
+          key: docker-data-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            docker-data-${{ runner.os }}-
+      - name: Unpack docker data cache
+        if: github.event_name != 'schedule'
+        run: |
+          if [ -f /mnt/data-docker.tar.gz ]; then
+            mkdir -p /mnt/dojo-test-data
+            sudo tar --use-compress-program=pigz -xf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data
+          fi
+
+      - name: Build docker image
+        if: github.event_name != 'schedule'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: pwncollege/dojo:test
+          load: true
+          cache-from: type=gha
+      - name: Build and cache docker image
+        if: github.event_name == 'schedule'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: pwncollege/dojo:test
+          load: true
+          cache-to: type=gha
 
       - name: Run dojo
         run: |
           docker run \
-            --privileged \
-            -d \
-            -v ./dojo-test-data:/opt/pwn.college/data:shared \
-            -p 2222:22 -p 80:80 -p 443:443 \
             --name dojo-test \
-            dojo-test
-
-      - name: Wait for services to build and start
+            --privileged \
+            --detach \
+            --rm \
+            -v "/mnt/dojo-test-data:/data:shared" \
+            -p 2222:22 -p 80:80 -p 443:443 \
+            pwncollege/dojo:test
+      - name: Build and start services
         run: |
-          docker exec dojo-test dojo wait
+          docker exec dojo-test dojo wait || (docker exec dojo-test dojo compose logs && false)
+          docker exec dojo-test docker image ls
 
-      - name: Wait for services to be ready
-        timeout-minutes: 2
+      - name: Wait for services to start
+        timeout-minutes: 3
         run: |
           docker exec dojo-test dojo compose logs -f &
           log_pid=$!
@@ -57,7 +105,28 @@ jobs:
           kill $log_pid
           exit 0
 
-      - name: Run tests against dojo
+      - name: Run tests
+        timeout-minutes: 10
         run: |
           export MOZ_HEADLESS=1
-          pytest -vrpP ./test || (docker exec dojo-test docker compose logs && false)
+          pytest -vrpP --durations=0 ./test || (docker exec dojo-test dojo compose logs && false)
+
+      - name: Pack docker data cache
+        if: github.event_name == 'schedule'
+        run: |
+          docker exec dojo-test dojo compose down
+          sudo tar --use-compress-program=pigz -cf /mnt/data-docker.tar.gz -C /mnt/dojo-test-data ./docker
+
+      - name: Save docker data cache
+        if: github.event_name == 'schedule'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /mnt/data-docker.tar.gz
+          key: docker-data-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Final filesystem information
+        run: |
+          echo "::group::Filesystem"
+          df -h
+          echo "::endgroup::"

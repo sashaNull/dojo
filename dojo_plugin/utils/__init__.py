@@ -1,24 +1,22 @@
-import contextlib
-import functools
-import json
-import tempfile
 import datetime
-import logging
-import pathlib
-import tarfile
 import hashlib
-import inspect
-import socket
-import fcntl
-import pytz
+import hmac
+import io
+import logging
 import os
+import pytz
 import re
+import tarfile
+import tempfile
 
 import bleach
 import docker
+import docker.errors
 from flask import current_app, Response, Markup, abort, g
 from itsdangerous.url_safe import URLSafeSerializer
+from CTFd.exceptions import UserNotFoundException, UserTokenExpiredException
 from CTFd.models import db, Solves, Challenges, Users
+from CTFd.utils.encoding import hexencode
 from CTFd.utils.user import get_current_user
 from CTFd.utils.modes import get_model
 from CTFd.utils.config.pages import build_markdown
@@ -26,9 +24,26 @@ from CTFd.utils.security.sanitize import sanitize_html
 from sqlalchemy import String, Integer
 from sqlalchemy.sql import or_
 
+from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
+
+
 ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
     return re.match(ID_REGEX, s) and ".." not in s
+
+
+def force_cache_updates():
+    return bool(os.environ.get("CACHE_WARMER"))
+
+
+def container_name(user):
+    return f"user_{user.id}"
+
+
+def container_password(container, *args):
+    key = container.labels["dojo.auth_token"].encode()
+    message = "-".join(args).encode()
+    return hmac.HMAC(key, message, "sha256").hexdigest()
 
 
 def get_current_container(user=None):
@@ -37,10 +52,9 @@ def get_current_container(user=None):
         return None
 
     docker_client = docker.from_env()
-    container_name = f"user_{user.id}"
 
     try:
-        return docker_client.containers.get(container_name)
+        return docker_client.containers.get(container_name(user))
     except docker.errors.NotFound:
         return None
 
@@ -66,6 +80,7 @@ def get_active_users(active_desktops=False):
     users = [ Users.query.filter_by(id=uid).first() for uid in uids ]
     return users
 
+
 def serialize_user_flag(account_id, challenge_id, *, secret=None):
     if secret is None:
         secret = current_app.config["SECRET_KEY"]
@@ -73,6 +88,7 @@ def serialize_user_flag(account_id, challenge_id, *, secret=None):
     data = [account_id, challenge_id]
     user_flag = serializer.dumps(data)[::-1]
     return user_flag
+
 
 def user_ipv4(user):
     # Subnet: 10.0.0.0/8
@@ -82,6 +98,7 @@ def user_ipv4(user):
     user_ip = (10 << 24) + (1 << 8) + user.id
     assert user_ip < (10 << 24) + (255 << 16) + (255 << 8)
     return f"{user_ip >> 24 & 0xff}.{user_ip >> 16 & 0xff}.{user_ip >> 8 & 0xff}.{user_ip & 0xff}"
+
 
 def redirect_internal(redirect_uri, auth=None):
     response = Response()
@@ -93,9 +110,11 @@ def redirect_internal(redirect_uri, auth=None):
     response.headers["redirect_uri"] = redirect_uri
     return response
 
+
 def redirect_user_socket(user, port, url_path):
     assert user is not None
-    return redirect_internal(f"http://user_{user.id}:{port}/{url_path}")
+    return redirect_internal(f"http://{container_name(user)}:{port}/{url_path}")
+
 
 def render_markdown(s):
     raw_html = build_markdown(s or "")
@@ -120,6 +139,7 @@ def render_markdown(s):
     clean_html = bleach.clean(raw_html, tags=markdown_tags, attributes=markdown_attrs)
     return Markup(clean_html)
 
+
 def unserialize_user_flag(user_flag, *, secret=None):
     if secret is None:
         secret = current_app.config["SECRET_KEY"]
@@ -129,36 +149,22 @@ def unserialize_user_flag(user_flag, *, secret=None):
     return account_id, challenge_id
 
 
-def simple_tar(path, name=None):
-    f = tempfile.NamedTemporaryFile()
-    t = tarfile.open(mode="w", fileobj=f)
-    abs_path = os.path.abspath(path)
-    t.add(abs_path, arcname=(name or os.path.basename(path)))
-    t.close()
-    f.seek(0)
-    return f
-
-
-def random_home_path(user, *, secret=None):
-    if secret is None:
-        secret = current_app.config["SECRET_KEY"]
-    return hashlib.sha256(f"{secret}_{user.id}".encode()).hexdigest()[:16]
-
-
-def module_visible(dojo, module, user):
-    return (
-        "time_visible" not in module or
-        module["time_visible"] <= datetime.datetime.now(pytz.utc) or
-        is_dojo_admin(user, dojo)
-    )
-
-
-def module_challenges_visible(dojo, module, user):
-    return (
-        "time_assigned" not in module or
-        module["time_assigned"] <= datetime.datetime.now(pytz.utc) or
-        is_dojo_admin(user, dojo)
-    )
+def resolved_tar(dir, *, root_dir, filter=None):
+    tar_buffer = io.BytesIO()
+    tar = tarfile.open(fileobj=tar_buffer, mode='w')
+    resolved_root_dir = root_dir.resolve()
+    for path in dir.rglob("*"):
+        if filter is not None and not filter(path):
+            continue
+        relative_path = path.relative_to(dir)
+        if path.is_symlink():
+            resolved_path = path.resolve()
+            assert resolved_path.is_relative_to(resolved_root_dir), f"The symlink {path} points outside of the root directory"
+            tar.add(resolved_path, arcname=relative_path)
+        else:
+            tar.add(path, arcname=relative_path, recursive=False)
+    tar_buffer.seek(0)
+    return tar_buffer
 
 
 def is_dojo_admin(user, dojo):
@@ -252,6 +258,7 @@ def first_bloods():
     ).all()
     return first_blood_query
 
+
 def daily_solve_counts():
     counts = (
         db.session.query(
@@ -265,6 +272,34 @@ def daily_solve_counts():
         .group_by("year", "month", "day", Solves.user_id)
     ).all()
     return counts
+
+
+# https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/security/auth.py#L51-L59
+def lookup_workspace_token(token):
+    token = WorkspaceTokens.query.filter_by(value=token).first()
+    if token:
+        if datetime.datetime.utcnow() >= token.expiration:
+            raise UserTokenExpiredException
+        return token.user
+    else:
+        raise UserNotFoundException
+    return None
+
+
+# https://github.com/CTFd/CTFd/blob/3.6.0/CTFd/utils/security/auth.py#L37-L48
+def generate_workspace_token(user, expiration=None):
+    temp_token = True
+    while temp_token is not None:
+        value = "workspace_" + hexencode(os.urandom(32))
+        temp_token = WorkspaceTokens.query.filter_by(value=value).first()
+
+    token = WorkspaceTokens(
+        user_id=user.id, expiration=expiration, value=value
+    )
+    db.session.add(token)
+    db.session.commit()
+    return token
+
 
 # based on https://stackoverflow.com/questions/36408496/python-logging-handler-to-append-to-list
 class ListHandler(logging.Handler): # Inherit from logging.Handler
@@ -291,4 +326,3 @@ class HTMLHandler(logging.Handler): # Inherit from logging.Handler
             self.html += self.join_tag
         self.html += f"{self.start_tag}<b>{record.levelname}</b>: {sanitize_html(record.getMessage())}{self.end_tag}"
 
-from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges

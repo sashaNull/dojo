@@ -1,17 +1,13 @@
-version: '3.4'
-
 services:
   challenge:
     build:
       context: ./challenge
-      target: challenge-final
       args:
         - DEFAULT_INSTALL_SELECTION=${DEFAULT_INSTALL_SELECTION}
         - INSTALL_AFL=${INSTALL_AFL:-${DEFAULT_INSTALL_SELECTION}}
         - INSTALL_ANGR_MANAGEMENT=${INSTALL_ANGR_MANAGEMENT:-${DEFAULT_INSTALL_SELECTION}}
         - INSTALL_BUSYBOX=${INSTALL_BUSYBOX:-${DEFAULT_INSTALL_SELECTION}}
         - INSTALL_CAPSTONE=${INSTALL_CAPSTONE:-${DEFAULT_INSTALL_SELECTION}}
-        - INSTALL_DESKTOP=${INSTALL_DESKTOP:-${DEFAULT_INSTALL_SELECTION}}
         - INSTALL_GDB=${INSTALL_GDB:-${DEFAULT_INSTALL_SELECTION}}
         - INSTALL_GECKODRIVER=${INSTALL_GECKODRIVER:-${DEFAULT_INSTALL_SELECTION}}
         - INSTALL_GHIDRA=${INSTALL_GHIDRA:-${DEFAULT_INSTALL_SELECTION}}
@@ -28,12 +24,36 @@ services:
         - INSTALL_VIRTIOFSD=${INSTALL_VIRTIOFSD:-${DEFAULT_INSTALL_SELECTION}}
         - INSTALL_WINDOWS=${INSTALL_WINDOWS:-${DEFAULT_INSTALL_SELECTION}}
         - UBUNTU_VERSION=${UBUNTU_VERSION}
-        - DOJO_CHALLENGE=${DOJO_CHALLENGE}
       privileged: true
     platform: linux/amd64
     entrypoint: /bin/true
     networks:
       - user_network
+
+  workspace-builder:
+    container_name: workspace-builder
+    build:
+      context: ./workspace
+      args:
+        - DOJO_WORKSPACE=${DOJO_WORKSPACE}
+    environment:
+      - DOJO_WORKSPACE=${DOJO_WORKSPACE}
+    volumes:
+      - /data/workspace:/out
+    devices:
+      - /dev/kvm
+
+  workspacefs:
+    container_name: workspacefs
+    privileged: true
+    build:
+      context: ./workspacefs
+    volumes:
+      - /data/workspacefs:/run/workspace:shared
+      - /data/workspace/nix:/nix
+    depends_on:
+      workspace-builder:
+        condition: service_completed_successfully
 
   ctfd:
     container_name: ctfd
@@ -51,7 +71,7 @@ services:
         if [ "$DOJO_ENV" != "development" ]; then
           ./docker-entrypoint.sh;
         else
-          FLASK_ENV=development WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
+          FLASK_DEBUG=True WERKZEUG_DEBUG_PIN=off flask run --host 0.0.0.0 --port 8000;
         fi
     ulimits:
         nofile:
@@ -69,7 +89,7 @@ services:
       - SERVER_SENT_EVENTS=false
       - SECRET_KEY=${SECRET_KEY}
       - DOJO_HOST=${DOJO_HOST}
-      - HOST_DATA_PATH=/opt/pwn.college/data
+      - HOST_DATA_PATH=/data
       - MAIL_SERVER=${MAIL_SERVER}
       - MAIL_PORT=${MAIL_PORT}
       - MAIL_USERNAME=${MAIL_USERNAME}
@@ -84,14 +104,12 @@ services:
       - VIRTUAL_PORT=8000
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
     volumes:
-      - ./data:/var/data
-      - ./data/CTFd/logs:/var/log/CTFd
-      - ./data/CTFd/uploads:/var/uploads
-      - ./data/homes:/var/homes:shared
-      - ./data/challenges:/var/challenges:ro
-      - ./data/dojos:/var/dojos
-      - ./data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
-      - ./index.html:/var/index.html:ro
+      - /data:/var/data
+      - /data/CTFd/logs:/var/log/CTFd
+      - /data/CTFd/uploads:/var/uploads
+      - /data/homes:/var/homes:shared
+      - /data/dojos:/var/dojos
+      - /data/ssh_host_keys/ssh_known_hosts:/etc/ssh/ssh_known_hosts:ro
       - ./user_firewall.allowed:/var/user_firewall.allowed:ro
       - /etc/docker/seccomp.json:/etc/docker/seccomp.json:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -110,6 +128,12 @@ services:
       timeout: 10s
       retries: 3
     depends_on:
+      challenge:
+        condition: service_completed_successfully
+      workspace-builder:
+        condition: service_completed_successfully
+      workspacefs:
+        condition: service_started
       db:
         condition: service_healthy
         restart: true
@@ -128,7 +152,7 @@ services:
       - MYSQL_DATABASE=${DB_NAME}
       - DB_EXTERNAL=${DB_EXTERNAL}
     volumes:
-      - ./data/mysql:/var/lib/mysql
+      - /data/mysql:/var/lib/mysql
     command: [/start.sh]
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-p${DB_PASS}", "-u${DB_USER}", "-h${DB_HOST}"]
@@ -141,14 +165,14 @@ services:
     image: redis:4
     restart: always
     volumes:
-      - ./data/redis:/data
+      - /data/redis:/data
 
   sshd:
     container_name: sshd
     build:
       context: ./sshd
     volumes:
-      - ./data/ssh_host_keys:/etc/ssh:ro
+      - /data/ssh_host_keys:/etc/ssh:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - DB_HOST=${DB_HOST}
@@ -158,36 +182,23 @@ services:
     ports:
       - "22:22"
 
-  discord-bot:
-    container_name: discord_bot
-    build: discord_bot
-    restart: on-failure
-    environment:
-      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
-      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-
-  nginx:
-    container_name: nginx
-    image: nginxproxy/nginx-proxy
+  nginx-proxy:
+    container_name: nginx-proxy
+    image: nginxproxy/nginx-proxy:1.5
     restart: always
     ports:
       - "80:80"
       - "443:443"
     environment:
-      - DOCKER_HOST=unix:///tmp/${DOCKER_PSLR}/docker.sock
       - DEFAULT_HOST=${DOJO_HOST}
+      - TRUST_DOWNSTREAM_PROXY=false
       - LOG_JSON=true
     volumes:
       - conf:/etc/nginx/conf.d
       - html:/usr/share/nginx/html
-      - dhparam:/etc/nginx/dhparam
       - certs:/etc/nginx/certs:ro
       - ./nginx-proxy/etc/nginx/vhost.d:/etc/nginx/vhost.d
-      - ./nginx-proxy/etc/passwd:/etc/passwd:ro
-      - ./data/homes:/var/homes:shared
-      - /var/run/docker.sock:/tmp/${DOCKER_PSLR}/docker.sock:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
     networks:
       default:
       user_network:
@@ -195,12 +206,12 @@ services:
           - nginx
         ipv4_address: 10.0.0.3
 
-  nginx-certs:
-    container_name: nginx_certs
-    image: nginxproxy/acme-companion
+  acme-companion:
+    container_name: nginx-proxy-acme
+    image: nginxproxy/acme-companion:2.3
     restart: always
     volumes_from:
-      - nginx
+      - nginx-proxy
     volumes:
       - certs:/etc/nginx/certs:rw
       - acme:/etc/acme.sh
@@ -209,11 +220,12 @@ services:
 volumes:
   conf:
   html:
-  dhparam:
   certs:
   acme:
 
 networks:
+  default:
+    driver: bridge
   user_network:
     name: user_network
     driver: bridge
