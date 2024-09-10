@@ -38,6 +38,8 @@ let
     echo "root:x:0:" >> /etc/group
     echo "hacker:x:1000:" >> /etc/group
 
+    echo "PATH=\"/run/challenge/bin:/run/workspace/bin:$IMAGE_PATH\"" > /etc/environment
+
     echo $DOJO_AUTH_TOKEN > /run/dojo/var/auth_token
 
     read DOJO_FLAG
@@ -46,16 +48,9 @@ let
     exec > /run/dojo/var/root/init.log 2>&1
     chmod 600 /run/dojo/var/root/init.log
 
-    # TODO: Better support privileged mode
-    if [ "$DOJO_MODE" = "privileged" ] && [ -f /usr/bin/sudo ]; then
-      chmod 4755 /usr/bin/sudo
-      usermod -aG sudo hacker
-      echo 'hacker ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-      passwd -d root
+    if [ "$DOJO_MODE" = "privileged" ]; then
+      touch /run/dojo/var/root/privileged
     fi
-
-    chown -R 1000:1000 /home/hacker
-    chmod 755 /home/hacker
 
     if [ -x "/challenge/.init" ]; then
         PATH="/run/challenge/bin:$IMAGE_PATH" /challenge/.init
