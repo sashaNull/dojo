@@ -7,6 +7,9 @@ import sys
 import time
 
 import docker
+import redis
+
+import mac_docker
 
 
 WORKSPACE_NODES = {
@@ -14,6 +17,21 @@ WORKSPACE_NODES = {
     for node_id, node_key in
     json.load(pathlib.Path("/var/workspace_nodes.json").open()).items()
 }
+
+r = redis.from_url(os.environ.get("REDIS_URL"))
+
+def get_docker_client(user_id):
+    image_name = r.get(f"flask_cache_user_{user_id}-running-image")
+    node_id = list(WORKSPACE_NODES.keys())[user_id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
+    docker_host = f"tcp://192.168.42.{node_id + 1}:2375" if node_id is not None else "unix:///var/run/docker.sock"
+
+    is_mac = False
+    if image_name and b"mac:" in image_name:
+        docker_client = mac_docker.MacDockerClient(key_filename="/opt/sshd/pwn-college-mac-key")
+        is_mac = True
+    else:
+        docker_client = docker.DockerClient(base_url=docker_host, tls=False)
+    return docker_host, docker_client, is_mac
 
 
 def main():
@@ -31,11 +49,9 @@ def main():
         print(f"{sys.argv[0]} <container_name>")
         exit(1)
     container_name = sys.argv[1]
-
     user_id = int(container_name.split("_")[1])
-    node_id = list(WORKSPACE_NODES.keys())[user_id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
-    docker_host = f"tcp://192.168.42.{node_id + 1}:2375" if node_id is not None else "unix:///var/run/docker.sock"
-    docker_client = docker.DockerClient(base_url=docker_host, tls=False)
+
+    docker_host, docker_client, is_mac = get_docker_client(user_id)
 
     try:
         container = docker_client.containers.get(container_name)
@@ -45,6 +61,8 @@ def main():
 
     attempts = 0
     while attempts < 30:
+        if attempts != 0:
+            docker_host, docker_client, is_mac = get_docker_client(user_id)
         try:
             container = docker_client.containers.get(container_name)
             status = container.status
@@ -69,23 +87,27 @@ def main():
 
         if not os.fork():
             ssh_entrypoint = "/run/dojo/bin/ssh-entrypoint"
-            command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
-            os.execve(
-                "/usr/bin/docker",
-                [
-                    "docker",
-                    "exec",
-                    "-it" if tty else "-i",
-                    "--user=1000",
-                    "--workdir=/home/hacker",
-                    container_name,
-                    *command,
-                ],
-                {
-                    "HOME": os.environ["HOME"],
-                    "DOCKER_HOST": docker_host,
-                },
-            )
+            if is_mac:
+                cmd = original_command if original_command else "zsh -i"
+                container.execve_shell(cmd, user="1000")
+            else:
+                command = [ssh_entrypoint, "-c", original_command] if original_command else [ssh_entrypoint]
+                os.execve(
+                    "/usr/bin/docker",
+                    [
+                        "docker",
+                        "exec",
+                        "-it" if tty else "-i",
+                        "--user=1000",
+                        "--workdir=/home/hacker",
+                        container_name,
+                        *command,
+                    ],
+                    {
+                        "HOME": os.environ["HOME"],
+                        "DOCKER_HOST": docker_host,
+                    },
+                )
 
         else:
             _, status = os.wait()

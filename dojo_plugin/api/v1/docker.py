@@ -10,6 +10,7 @@ import docker.errors
 import docker.types
 from flask import abort, request, current_app
 from flask_restx import Namespace, Resource
+from CTFd.cache import cache
 from CTFd.models import Users
 from CTFd.utils.user import get_current_user, is_admin
 from CTFd.utils.decorators import authed_only
@@ -20,8 +21,8 @@ from ...models import DojoModules, DojoChallenges
 from ...utils import (
     container_name,
     lookup_workspace_token,
-    serialize_user_flag,
     resolved_tar,
+    serialize_user_flag,
     user_docker_client,
     user_ipv4,
 )
@@ -39,13 +40,18 @@ HOST_HOMES_MOUNTS = HOST_HOMES / "mounts"
 HOST_HOMES_OVERLAYS = HOST_HOMES / "overlays"
 
 
-def remove_container(docker_client, user):
-    try:
-        container = docker_client.containers.get(container_name(user))
-        container.remove(force=True)
-        container.wait(condition="removed")
-    except docker.errors.NotFound:
-        pass
+def remove_container(user):
+    # Just in case our container is still running on the other docker container, let's make sure we try to kill both
+    known_image_name = cache.get(f"user_{user.id}-running-image")
+    images = [None, known_image_name]
+    for image_name in images:
+        try:
+            docker_client = user_docker_client(user, image_name)
+            container = docker_client.containers.get(container_name(user))
+            container.remove(force=True)
+            container.wait(condition="removed")
+        except docker.errors.NotFound:
+            pass
 
 
 def start_container(docker_client, user, as_user, mounts, dojo_challenge, practice):
@@ -163,6 +169,7 @@ def start_container(docker_client, user, as_user, mounts, dojo_challenge, practi
         default_network.disconnect(container)
 
     container.start()
+    cache.set(f"user_{user.id}-running-image", dojo_challenge.image, timeout=0)
     return container
 
 
@@ -195,9 +202,9 @@ def insert_challenge(container, as_user, dojo_challenge):
         container.put_archive("/challenge", resolved_tar(option, root_dir=root_dir))
 
     exec_run(
-        "/run/dojo/bin/chown -R root:root /challenge", container=container
+        "/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chown root:root {} \;", container=container
     )
-    exec_run("/run/dojo/bin/chmod -R 4755 /challenge", container=container)
+    exec_run("/run/dojo/bin/find /challenge/ -mindepth 1 -exec /run/dojo/bin/chmod 4755 {} \;", container=container)
 
 
 def insert_flag(container, flag):
@@ -209,15 +216,16 @@ def insert_flag(container, flag):
 
 def start_challenge(user, dojo_challenge, practice, *, as_user=None):
     as_user = as_user or user
-    docker_client = user_docker_client(user)
-    remove_container(docker_client, user)
+    docker_client = user_docker_client(user, image_name=dojo_challenge.image)
+    remove_container(user)
 
     mounts = [("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id), None)]
     if as_user != user:
         mounts = [
             # ("/home/hacker", HOST_HOMES_OVERLAYS / f"{user.id}-{as_user.id}"),
-            ("/home/hacker", HOST_HOMES_MOUNTS / str(as_user.id), dict(read_only=True)),
-            ("/home/me", HOST_HOMES_MOUNTS / str(user.id), None),
+            # ("/home/me", HOST_HOMES_MOUNTS / str(user.id), None),
+            ("/home/hacker", HOST_HOMES_MOUNTS / str(user.id), None),
+            ("/home/other", HOST_HOMES_MOUNTS / str(as_user.id), dict(read_only=True)),
         ]
 
     container = start_container(

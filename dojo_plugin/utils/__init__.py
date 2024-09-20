@@ -26,7 +26,7 @@ from sqlalchemy.sql import or_
 
 from ..config import WORKSPACE_NODES
 from ..models import Dojos, DojoMembers, DojoAdmins, DojoChallenges, WorkspaceTokens
-
+from . import mac_docker
 
 ID_REGEX = "^[A-Za-z0-9_.-]+$"
 def id_regex(s):
@@ -85,7 +85,10 @@ def user_node(user):
     return list(WORKSPACE_NODES.keys())[user.id % len(WORKSPACE_NODES)] if WORKSPACE_NODES else None
 
 
-def user_docker_client(user):
+def user_docker_client(user, image_name=None):
+    if image_name and image_name.startswith("mac:"):
+        return mac_docker.MacDockerClient()
+
     node_id = user_node(user)
     return (docker.DockerClient(base_url=f"tcp://192.168.42.{node_id + 1}:2375", tls=False)
             if node_id is not None else docker.from_env())

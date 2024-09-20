@@ -442,6 +442,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         hexedit
         icdiff
         iproute2
+        iptables
         iputils-ping
         ipython3
         john
@@ -501,6 +502,7 @@ FROM builder as builder-tools-pip-yes
 RUN xargs pip install --force-reinstall <<EOF
     angr
     asteval
+    dojjail>=0.1.2
     flask
     git+https://github.com/Gallopsled/pwntools#egg=pwntools
     git+https://github.com/secdev/scapy#egg=scapy
