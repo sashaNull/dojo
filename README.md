@@ -141,6 +141,14 @@ docker build -t pwncollege/dojo "$DOJO_PATH"
 docker run \
     --name dojo \
     --privileged \
+    -e DOJO_HOST=pwn.cis.upenn.edu \
+    -e VIRTUAL_HOST=pwn.cis.upenn.edu \
+    -e LETSENCRYPT_HOST=pwn.cis.upenn.edu \
+    -e DOJO_ENV=production \
+    -e DOJO_WORKSPACE=full \
+    -e DEFAULT_INSTALL_SELECTION=yes \
+    -e INSTALL_IDA_FREE=yes \
+    -e INSTALL BINJA_FREE=yes \
     -v "${DOJO_PATH}:/opt/pwn.college" \
     -v "${DATA_PATH}:/data:shared" \
     -p 2220:22 -p 80:80 -p 443:443 \
