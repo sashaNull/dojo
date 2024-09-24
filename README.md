@@ -148,7 +148,7 @@ docker run \
     -e DOJO_WORKSPACE=full \
     -e DEFAULT_INSTALL_SELECTION=yes \
     -e INSTALL_IDA_FREE=yes \
-    -e INSTALL BINJA_FREE=yes \
+    -e INSTALL_BINJA_FREE=yes \
     -v "${DOJO_PATH}:/opt/pwn.college" \
     -v "${DATA_PATH}:/data:shared" \
     -p 2220:22 -p 80:80 -p 443:443 \
