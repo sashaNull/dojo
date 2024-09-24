@@ -130,6 +130,7 @@ While we recommend using the [pwn.college](https://pwn.college) deployment, you 
 
 ```sh
 curl -fsSL https://get.docker.com | /bin/sh
+#NOTE: DONT USE ROOTLESS DOCKER!!!
 
 DOJO_PATH="./dojo"
 DATA_PATH="./dojo/data"
